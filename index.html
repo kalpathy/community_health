@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive AI Playbook for Primary Care</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Warm Neutrals with Blue/Green Accents -->
+    <!-- Application Structure Plan: The application is designed as a role-based interactive dashboard. This structure was chosen because the source report is aimed at a diverse audience with different roles (Clinicians, Schedulers, etc.). By allowing users to select their role, the application immediately personalizes the content, showing them the most relevant pain points, AI solutions, and interactive demos. This user-centric approach is more engaging and effective than a linear presentation of the report. A "View All" mode provides a comprehensive overview for users interested in the broader context. The flow is: User Selects Role -> Content Dynamically Updates -> User Interacts with Mini-Demos. This makes the abstract concepts of the report tangible and directly applicable to the user's daily work. -->
+    <!-- Visualization & Content Choices: Report Info: Clinician admin burden (16.6% of time). Goal: Quantify a key pain point. Viz: Chart.js Donut Chart. Interaction: Appears for 'Clinician' role. Justification: A visual statistic is more impactful than text alone. | Report Info: Workshop Blueprints (Flyer, No-Show, Translation, etc.). Goal: Make abstract tools feel real. Viz: Interactive HTML/JS mini-apps. Interaction: Users click buttons to trigger simulated AI actions (e.g., generating a flyer, calculating risk). Justification: This hands-on approach is the core of the workshop's philosophy and provides a much deeper understanding than reading a description. | Report Info: Role-specific pain points and solutions. Goal: Connect problems to solutions. Viz: Card-based layout. Interaction: Cards reveal solutions on hover or click. Justification: This creates a clean, organized, and interactive way to explore the core content. | Library/Method: Chart.js for the chart, Vanilla JS for all interactions and dynamic content rendering. CONFIRMING NO SVG/Mermaid. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .active-nav-button {
+            background-color: #0891b2; /* cyan-600 */
+            color: white;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        .nav-button {
+            transition: all 0.3s ease;
+        }
+        .nav-button:hover {
+            background-color: #0e7490; /* cyan-700 */
+            color: white;
+        }
+        .content-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .content-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 350px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+    <div id="app" class="container mx-auto p-4 md:p-8">
+
+        <header class="text-center mb-8 md:mb-12">
+            <h1 class="text-3xl md:text-5xl font-bold text-cyan-800 mb-2">The AI Playbook for Primary Care</h1>
+            <p class="text-md md:text-lg text-slate-600 max-w-3xl mx-auto">An interactive guide to practical AI solutions that can transform your clinic's daily operations. Select your role to discover tools tailored to your workflow.</p>
+        </header>
+
+        <nav class="flex flex-wrap justify-center gap-2 md:gap-4 mb-8 md:mb-12" id="role-selector">
+        </nav>
+
+        <main id="main-content" class="space-y-12">
+        </main>
+
+    </div>
+
+    <script>
+        const appData = {
+            roles: {
+                'all': {
+                    name: 'All Roles',
+                    icon: '👥',
+                    description: 'Explore all AI solutions available to the primary care team. See how different tools can support various functions across the clinic, fostering better collaboration and efficiency.'
+                },
+                'clinician': {
+                    name: 'Clinician',
+                    icon: '🩺',
+                    description: 'As a Physician, NP, or PA, your focus is on patient care, but administrative tasks can be overwhelming. Discover AI tools that act as your co-pilot, automating documentation, summarization, and communication to help you reclaim time and reduce burnout.',
+                    painPoints: [
+                        { title: 'Administrative Burden', description: 'Spending hours on EHR documentation, referral letters, and prior authorizations instead of with patients.' },
+                        { title: 'Information Overload', description: 'Struggling to quickly digest long patient histories and complex specialist notes before a visit.' },
+                        { title: 'Repetitive Communication', description: 'Drafting similar patient messages and follow-up instructions repeatedly.' },
+                    ],
+                    solutions: ['summarization', 'writing', 'education'],
+                    demos: ['summarizationDemo', 'writingDemo']
+                },
+                'admin': {
+                    name: 'Admin & Scheduler',
+                    icon: '📋',
+                    description: 'You are the architects of clinic flow, managing appointments, calls, and patient-facing communications. Explore AI tools that serve as a predictive partner, helping to optimize schedules, reduce no-shows, and automate routine tasks.',
+                    painPoints: [
+                        { title: 'Scheduling Complexity', description: 'Juggling unpredictable patient demand, last-minute cancellations, and the constant threat of no-shows.' },
+                        { title: 'Repetitive Inquiries', description: 'Answering the same questions about clinic hours, directions, and policies via phone all day.' },
+                        { title: 'Manual Content Creation', description: 'Creating flyers, posters, and patient announcements without professional design tools or expertise.' },
+                    ],
+                    solutions: ['flyers', 'chatbots', 'noshows', 'reminders'],
+                    demos: ['flyerDemo', 'noShowDemo', 'chatbotDemo']
+                },
+                'navigator': {
+                    name: 'Patient Navigator',
+                    icon: '🧭',
+                    description: 'You guide patients through a complex healthcare system, breaking down barriers to care. Discover AI tools that act as a universal communicator and organizer, helping you bridge language gaps, create personalized education, and ensure no patient falls through the cracks.',
+                    painPoints: [
+                        { title: 'Language Barriers', description: 'Struggling to communicate complex medical information effectively with patients who have limited English proficiency.' },
+                        { title: 'Fragmented Communication', description: 'Coordinating between different providers and ensuring care plans are understood and followed.' },
+                        { title: 'Generic Education', description: 'Relying on one-size-fits-all handouts that may not meet a patient\'s specific literacy or language needs.' },
+                    ],
+                    solutions: ['translation', 'education', 'writing'],
+                    demos: ['translationDemo', 'educationDemo']
+                },
+                 'manager': {
+                    name: 'Clinic Manager',
+                    icon: '📊',
+                    description: 'You oversee the clinic\'s operational health and drive quality improvement. Discover AI tools that provide powerful insights by analyzing patient feedback and operational data, enabling you to make smarter, data-driven decisions.',
+                    painPoints: [
+                        { title: 'Unstructured Feedback', description: 'Having large amounts of valuable patient survey comments but no efficient way to analyze them for trends.' },
+                        { title: 'Operational Blind Spots', description: 'Lacking clear, data-driven insights into systemic issues like the root causes of long wait times or billing confusion.' },
+                        { title: 'Resource Allocation', description: 'Making decisions about staffing and process changes based on intuition rather than objective data.' },
+                    ],
+                    solutions: ['feedback', 'noshows'],
+                    demos: ['feedbackDemo', 'noShowDemo']
+                }
+            },
+            solutions: {
+                'flyers': { title: 'AI Content Creation', description: 'Instantly generate professional flyers, posters, and health bulletins from a simple text prompt. Empowers any staff member to create high-quality communications in minutes.', icon: '🎨', tool: 'Adobe Express, Piktochart AI' },
+                'writing': { title: 'AI-Assisted Writing', description: 'Draft referral letters, patient emails, and post-visit summaries faster. AI provides a structured first draft, reducing the "blank page" problem and saving valuable time.', icon: '✍️', tool: 'Jotform AI, Gemini in Gmail' },
+                'summarization': { title: 'AI Document Summarization', description: 'Condense lengthy patient charts and specialist notes into concise, structured summaries. Helps clinicians get up to speed on a case quickly, targeting a major source of burnout.', icon: '📄', tool: 'Nabla, SlidesPilot' },
+                'chatbots': { title: 'AI Website Chatbots', description: 'Provide 24/7 answers to common patient questions (hours, insurance, etc.) on your website. Reduces incoming call volume and improves patient access to information.', icon: '💬', tool: 'Botsonic, Chatling' },
+                'reminders': { title: 'Intelligent Appointment Reminders', description: 'Send personalized, conversational reminders via SMS that can handle simple replies like "confirm" or "reschedule." Automates a critical task and helps reduce no-shows.', icon: '⏰', tool: 'Zapier, Whippy' },
+                'education': { title: 'Personalized Patient Education', description: 'Create educational materials tailored to a patient\'s condition, literacy level, and language. Simplifies complex medical terms to improve understanding and adherence.', icon: '❤️', tool: 'Gemini, ChatGPT' },
+                'noshows': { title: 'No-Show Predictive Analytics', description: 'Analyze historical data to generate a "no-show risk score" for each appointment. Transforms scheduling from reactive to proactive, allowing for targeted interventions.', icon: '📈', tool: 'Google Sheets + AI, No-Code ML Platforms' },
+                'translation': { title: 'Real-Time Language Translation', description: 'Instantly translate written documents or live speech. Empowers all staff to communicate effectively with a diverse patient population, improving safety and satisfaction.', icon: '🌐', tool: 'DeepL, Google Translate' },
+                'feedback': { title: 'Patient Feedback Analysis', description: 'Automatically analyze hundreds of patient survey comments to identify key themes (e.g., wait times, staff friendliness) and overall sentiment. Provides fast, objective insights for quality improvement.', icon: '🔍', tool: 'Google Sheets + AI, Nocodefunctions.com' }
+            },
+            demos: {
+                summarizationDemo: {
+                    title: 'Interactive Demo: AI Chart Summarization',
+                    description: 'This simulates how an AI can take a long, unstructured clinical note and instantly pull out the key information. Click the button to see the AI-powered summary.',
+                    run: (container) => {
+                        const longText = `Patient is a 68 y/o male with a hx of HTN, HLD, and T2DM, presenting for f/u. Last A1c was 7.8 three months ago. Pt reports generally feeling well but notes occasional dizziness, esp. upon standing. He denies chest pain, SOB. He has been compliant with Metformin 1000mg BID and Lisinopril 20mg daily. He forgot to refill his Atorvastatin last month. BP today is 145/92. Recent labs show Cr 1.1, K+ 4.2, Gluc 160. Assessment: Uncontrolled HTN, T2DM with suboptimal glycemic control. Plan: 1. Increase Lisinopril to 40mg daily. 2. Emphasize medication adherence, esp. for Atorvastatin. 3. Provide pt education on checking BP at home. 4. F/u in 1 month to recheck BP.`;
+                        const summary = `
+                            <ul class="list-disc list-inside space-y-2 text-left bg-white p-4 rounded-lg shadow">
+                                <li><strong class="text-cyan-700">Patient:</strong> 68-year-old male</li>
+                                <li><strong class="text-cyan-700">Active Issues:</strong> Uncontrolled Hypertension, Type 2 Diabetes (A1c 7.8)</li>
+                                <li><strong class="text-cyan-700">Subjective:</strong> Occasional orthostatic dizziness.</li>
+                                <li><strong class="text-cyan-700">Objective:</strong> BP 145/92.</li>
+                                <li><strong class="text-cyan-700">Medication Issue:</strong> Non-adherence to Atorvastatin.</li>
+                                <li><strong class="text-cyan-700">Plan:</strong> Increase Lisinopril, emphasize adherence, home BP monitoring, follow-up in 1 month.</li>
+                            </ul>`;
+                        
+                        container.innerHTML += `
+                            <div class="grid md:grid-cols-2 gap-4 text-center">
+                                <div>
+                                    <h4 class="font-semibold mb-2">Original Clinical Note</h4>
+                                    <textarea class="w-full h-48 p-2 border rounded-lg bg-slate-100 text-sm" readonly>${longText}</textarea>
+                                </div>
+                                <div id="summary-output" class="pt-8">
+                                    <h4 class="font-semibold mb-2">AI-Generated Summary</h4>
+                                    <div class="w-full h-48 p-2 border rounded-lg border-dashed flex items-center justify-center text-slate-500">Click "Summarize"</div>
+                                </div>
+                            </div>
+                            <div class="mt-4 text-center">
+                                <button id="summarize-btn" class="bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-cyan-700 transition">Summarize Note</button>
+                            </div>
+                        `;
+
+                        container.querySelector('#summarize-btn').addEventListener('click', (e) => {
+                            e.target.disabled = true;
+                            e.target.textContent = 'Summarized!';
+                            container.querySelector('#summary-output').innerHTML = `<h4 class="font-semibold mb-2">AI-Generated Summary</h4>${summary}`;
+                        });
+                    }
+                },
+                flyerDemo: {
+                    title: 'Interactive Demo: AI Flyer Generator',
+                    description: 'Simulates creating a clinic flyer. Type a simple description and click "Generate" to see how AI can instantly produce a professional design.',
+                    run: (container) => {
+                        container.innerHTML += `
+                            <div class="text-center">
+                                <label for="flyer-prompt" class="block font-semibold mb-2">Enter your flyer description:</label>
+                                <textarea id="flyer-prompt" class="w-full max-w-lg mx-auto p-2 border rounded-lg mb-4" rows="3">A friendly and welcoming flyer for our annual community flu shot clinic. Use bright, clean colors and include an image of a smiling nurse.</textarea>
+                                <button id="flyer-btn" class="bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-cyan-700 transition">Generate Flyer</button>
+                                <div id="flyer-output" class="mt-6 p-4 border-dashed border-2 rounded-lg h-64 flex items-center justify-center text-slate-500 bg-slate-100 max-w-md mx-auto">
+                                    Your generated flyer will appear here
+                                </div>
+                            </div>
+                        `;
+                        container.querySelector('#flyer-btn').addEventListener('click', () => {
+                            const output = container.querySelector('#flyer-output');
+                            output.innerHTML = `<img src="https://placehold.co/400x250/0891b2/FFFFFF?text=Community+Flu+Shot+Clinic!\\nGet+Protected+Today" alt="Generated Flyer" class="w-full h-full object-cover rounded-lg">`;
+                        });
+                    }
+                },
+                noShowDemo: {
+                    title: 'Interactive Demo: No-Show Prediction',
+                    description: 'This simulates how AI can analyze appointment data to predict the likelihood of a no-show. Click the button to calculate a "Risk Score" for each appointment.',
+                     run: (container) => {
+                        const data = [
+                            { id: 'P001', age: 72, lead: 3, prior: 4, day: 'Monday' },
+                            { id: 'P002', age: 25, lead: 28, prior: 1, day: 'Friday' },
+                            { id: 'P003', age: 41, lead: 2, prior: 0, day: 'Tuesday' },
+                            { id: 'P004', age: 33, lead: 15, prior: 2, day: 'Monday' },
+                            { id: 'P005', age: 58, lead: 1, prior: 0, day: 'Thursday' },
+                        ];
+                        container.innerHTML += `
+                            <div class="overflow-x-auto">
+                                <table id="noshow-table" class="w-full text-sm text-left">
+                                    <thead class="bg-slate-100">
+                                        <tr>
+                                            <th class="p-2">Patient ID</th><th>Age</th><th>Lead Time (d)</th><th>Prior No-Shows</th><th>Day</th><th class="w-28">Risk Score</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${data.map(row => `
+                                            <tr class="border-b">
+                                                <td class="p-2">${row.id}</td><td>${row.age}</td><td>${row.lead}</td><td>${row.prior}</td><td>${row.day}</td>
+                                                <td data-patient-id="${row.id}" class="risk-cell border-l border-dashed text-center">...</td>
+                                            </tr>`).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="mt-4 text-center">
+                                <button id="noshow-btn" class="bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-cyan-700 transition">Calculate Risk</button>
+                            </div>
+                        `;
+                        container.querySelector('#noshow-btn').addEventListener('click', (e) => {
+                            e.target.disabled = true;
+                            e.target.textContent = 'Calculated!';
+                            container.querySelectorAll('.risk-cell').forEach(cell => {
+                                const row = data.find(r => r.id === cell.dataset.patientId);
+                                let score = 'Low';
+                                let color = 'bg-green-100 text-green-800';
+                                if (row.prior > 2 || row.lead > 20) {
+                                    score = 'High';
+                                    color = 'bg-red-100 text-red-800';
+                                } else if (row.prior > 0 || row.lead > 10) {
+                                    score = 'Medium';
+                                    color = 'bg-yellow-100 text-yellow-800';
+                                }
+                                cell.innerHTML = `<span class="px-2 py-1 rounded-full text-xs font-medium ${color}">${score}</span>`;
+                            });
+                        });
+                    }
+                },
+                translationDemo: {
+                    title: 'Interactive Demo: Real-Time Translation',
+                    description: 'This simulates how AI can instantly translate text. Type an English instruction in the left box to see the Spanish translation appear on the right.',
+                    run: (container) => {
+                        const translations = {
+                            "check your blood sugar": "revise su nivel de azúcar en la sangre",
+                            "take this medication twice a day": "tome este medicamento dos veces al día",
+                            "your next appointment is in three months": "su próxima cita es en tres meses",
+                            "call us if you have a fever": "llámenos si tiene fiebre",
+                        };
+                        container.innerHTML += `
+                            <div class="grid md:grid-cols-2 gap-4 text-center">
+                                <div>
+                                    <h4 class="font-semibold mb-2">English (Clinician)</h4>
+                                    <textarea id="translate-input" class="w-full h-32 p-2 border rounded-lg" placeholder="Type a simple instruction here..."></textarea>
+                                </div>
+                                <div>
+                                    <h4 class="font-semibold mb-2">Spanish (Patient)</h4>
+                                    <textarea id="translate-output" class="w-full h-32 p-2 border rounded-lg bg-slate-100" readonly></textarea>
+                                </div>
+                            </div>
+                        `;
+                        container.querySelector('#translate-input').addEventListener('input', (e) => {
+                            const input = e.target.value.toLowerCase().trim();
+                            let output = '';
+                            for (const [key, value] of Object.entries(translations)) {
+                                if (input.includes(key)) {
+                                    output = value;
+                                    break;
+                                }
+                            }
+                            container.querySelector('#translate-output').value = output;
+                        });
+                    }
+                },
+                writingDemo: {
+                    title: 'Interactive Demo: AI-Assisted Writing',
+                    description: 'This simulates using AI to draft a common clinical document, like a referral letter. Click the button to generate a draft.',
+                    run: (container) => {
+                        const referralReason = `Patient requires evaluation by Cardiology for uncontrolled hypertension and occasional dizziness. Please assess and advise on management.`;
+                        const aiDraft = `Dear Cardiology team,\n\nThank you for seeing this 68-year-old male for evaluation of uncontrolled hypertension.\n\nHistory:\n- HTN, HLD, T2DM\n- Current BP: 145/92\n- Patient reports occasional orthostatic dizziness.\n- Current medications include Lisinopril 20mg and Metformin 1000mg BID.\n\nAssessment & Plan:\nThe patient's hypertension is not at goal. We are increasing his Lisinopril to 40mg daily. We would appreciate your expert evaluation and recommendations for further management.\n\nThank you for your collaboration in this patient's care.`;
+                        container.innerHTML += `
+                            <div class="text-center">
+                                <h4 class="font-semibold mb-2">Referral Reason</h4>
+                                <p class="p-2 border rounded-lg bg-slate-100 text-sm mb-4">${referralReason}</p>
+                                <button id="writing-btn" class="bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-cyan-700 transition">Generate Referral Draft</button>
+                                <div id="writing-output" class="mt-4">
+                                    <h4 class="font-semibold mb-2">AI-Generated Draft</h4>
+                                    <textarea class="w-full h-48 p-2 border rounded-lg border-dashed text-slate-500" placeholder="Draft will appear here..."></textarea>
+                                </div>
+                            </div>
+                        `;
+                        container.querySelector('#writing-btn').addEventListener('click', (e) => {
+                            e.target.disabled = true;
+                            e.target.textContent = 'Draft Generated!';
+                            container.querySelector('#writing-output textarea').value = aiDraft;
+                            container.querySelector('#writing-output textarea').classList.remove('border-dashed', 'text-slate-500');
+                        });
+                    }
+                },
+                educationDemo: {
+                    title: 'Interactive Demo: Personalized Patient Education',
+                    description: 'This simulates using AI to simplify complex medical text into plain language for a patient handout.',
+                    run: (container) => {
+                         const complexText = `The patient is diagnosed with Type 2 Diabetes Mellitus, a metabolic disorder characterized by hyperglycemia resulting from insulin resistance and relative insulin deficiency. Management involves lifestyle modifications, including dietary changes and physical activity, alongside pharmacological interventions such as Metformin to decrease hepatic glucose production.`;
+                         const simpleText = `
+                            <div class="text-left bg-white p-4 rounded-lg shadow space-y-2">
+                                <h5 class="font-bold text-cyan-700">Understanding Your Diabetes</h5>
+                                <p><strong class="font-semibold">What it is:</strong> Your body has trouble using sugar for energy. This makes the sugar level in your blood too high.</p>
+                                <p><strong class="font-semibold">What to do:</strong></p>
+                                <ul class="list-disc list-inside ml-4">
+                                    <li>Eat healthy foods and stay active.</li>
+                                    <li>Take your medicine (Metformin) to help lower the sugar your body makes.</li>
+                                </ul>
+                            </div>`;
+                        
+                        container.innerHTML += `
+                             <div class="grid md:grid-cols-2 gap-4 text-center">
+                                <div>
+                                    <h4 class="font-semibold mb-2">Original Medical Text</h4>
+                                    <textarea class="w-full h-40 p-2 border rounded-lg bg-slate-100 text-sm" readonly>${complexText}</textarea>
+                                </div>
+                                <div id="education-output" class="pt-8">
+                                    <h4 class="font-semibold mb-2">AI-Simplified Patient Handout</h4>
+                                    <div class="w-full h-40 p-2 border rounded-lg border-dashed flex items-center justify-center text-slate-500">Click "Simplify"</div>
+                                </div>
+                            </div>
+                            <div class="mt-4 text-center">
+                                <button id="simplify-btn" class="bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-cyan-700 transition">Simplify for Patient</button>
+                            </div>
+                        `;
+
+                        container.querySelector('#simplify-btn').addEventListener('click', (e) => {
+                            e.target.disabled = true;
+                            e.target.textContent = 'Simplified!';
+                            container.querySelector('#education-output').innerHTML = `<h4 class="font-semibold mb-2">AI-Simplified Patient Handout</h4>${simpleText}`;
+                        });
+                    }
+                },
+                feedbackDemo: {
+                    title: 'Interactive Demo: Patient Feedback Analysis',
+                    description: 'This simulates how AI can analyze a list of unstructured patient comments to find key themes and overall sentiment.',
+                    run: (container) => {
+                        const comments = [
+                            "The wait time was over 45 minutes, which is unacceptable.",
+                            "Dr. Evans was so caring and really listened to me.",
+                            "I received a bill that I don't understand, and it's impossible to get someone on the phone.",
+                            "The new online patient portal is very confusing to use.",
+                            "The front desk staff was so friendly and helpful when I checked in.",
+                            "Parking is always a nightmare at this location.",
+                            "I appreciate the follow-up call from the nurse."
+                        ];
+                        container.innerHTML += `
+                            <div class="grid md:grid-cols-2 gap-6">
+                                <div>
+                                    <h4 class="font-semibold mb-2 text-center">Raw Patient Feedback</h4>
+                                    <ul class="space-y-2">
+                                        ${comments.map(c => `<li class="bg-white p-2 rounded-lg shadow-sm text-sm">${c}</li>`).join('')}
+                                    </ul>
+                                </div>
+                                <div id="feedback-analysis" class="text-center pt-8">
+                                    <h4 class="font-semibold mb-2">AI-Generated Analysis</h4>
+                                    <div class="p-4 border-dashed border-2 rounded-lg h-64 flex items-center justify-center text-slate-500">Click "Analyze Feedback"</div>
+                                </div>
+                            </div>
+                            <div class="mt-6 text-center">
+                                <button id="feedback-btn" class="bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-cyan-700 transition">Analyze Feedback</button>
+                            </div>
+                        `;
+                        container.querySelector('#feedback-btn').addEventListener('click', (e) => {
+                            e.target.disabled = true;
+                            e.target.textContent = 'Analyzed!';
+                            const analysisContainer = container.querySelector('#feedback-analysis');
+                            analysisContainer.innerHTML = `
+                                <h4 class="font-semibold mb-2">AI-Generated Analysis</h4>
+                                <div class="bg-white p-4 rounded-lg shadow text-left">
+                                    <h5 class="font-bold text-cyan-700 mb-2">Key Themes:</h5>
+                                    <ul class="list-disc list-inside space-y-1 text-sm">
+                                        <li><strong class="font-semibold">Wait Times:</strong> Patients report long wait times.</li>
+                                        <li><strong class="font-semibold">Staff Attitude:</strong> Mixed feedback; Dr. Evans and front desk praised.</li>
+                                        <li><strong class="font-semibold">Billing & Communication:</strong> Issues with understanding bills and reaching staff.</li>
+                                        <li><strong class="font-semibold">Logistics:</strong> Parking is a common complaint.</li>
+                                    </ul>
+                                    <div class="chart-container mx-auto mt-4" style="height: 180px; max-width: 250px;">
+                                        <canvas id="sentimentChart"></canvas>
+                                    </div>
+                                </div>
+                            `;
+                            new Chart(container.querySelector('#sentimentChart'), {
+                                type: 'doughnut',
+                                data: {
+                                    labels: ['Positive', 'Negative', 'Neutral'],
+                                    datasets: [{
+                                        label: 'Sentiment',
+                                        data: [3, 3, 1],
+                                        backgroundColor: ['#22c55e', '#ef4444', '#64748b'],
+                                        hoverOffset: 4
+                                    }]
+                                },
+                                options: {
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    plugins: {
+                                        legend: { position: 'top' },
+                                        title: { display: true, text: 'Overall Sentiment' }
+                                    }
+                                }
+                            });
+                        });
+                    }
+                },
+                chatbotDemo: {
+                    title: 'Interactive Demo: AI Website Chatbot',
+                    description: 'This simulates a patient interacting with an AI chatbot on the clinic website. Select a question to see the AI\'s instant response.',
+                    run: (container) => {
+                        const questions = {
+                            'hours': 'Our clinic is open Monday to Friday, from 9:00 AM to 5:00 PM. We are closed on weekends and public holidays.',
+                            'insurance': 'We accept a wide range of insurance plans, including Aetna, Blue Cross, Cigna, and UnitedHealthcare. For specific questions about your coverage, please call our billing office.',
+                            'directions': 'We are located at 123 Health St, Wellness City. There is a parking garage available behind the building.'
+                        };
+                        container.innerHTML += `
+                            <div class="grid md:grid-cols-2 gap-4">
+                                <div class="text-center">
+                                    <h4 class="font-semibold mb-2">Patient Questions</h4>
+                                    <div class="flex flex-col space-y-2">
+                                        <button data-question="hours" class="chatbot-q-btn bg-white p-2 rounded-lg shadow-sm hover:bg-cyan-50 transition text-cyan-800">What are your hours?</button>
+                                        <button data-question="insurance" class="chatbot-q-btn bg-white p-2 rounded-lg shadow-sm hover:bg-cyan-50 transition text-cyan-800">Do you take my insurance?</button>
+                                        <button data-question="directions" class="chatbot-q-btn bg-white p-2 rounded-lg shadow-sm hover:bg-cyan-50 transition text-cyan-800">How do I get there?</button>
+                                    </div>
+                                </div>
+                                <div>
+                                    <h4 class="font-semibold mb-2 text-center">Chatbot Response</h4>
+                                    <div id="chatbot-output" class="w-full h-32 p-3 border rounded-lg bg-slate-100 flex items-center justify-center text-slate-500">Select a question to see the answer.</div>
+                                </div>
+                            </div>
+                        `;
+                        container.querySelectorAll('.chatbot-q-btn').forEach(btn => {
+                            btn.addEventListener('click', () => {
+                                const questionKey = btn.dataset.question;
+                                container.querySelector('#chatbot-output').textContent = questions[questionKey];
+                                container.querySelector('#chatbot-output').classList.remove('text-slate-500');
+                            });
+                        });
+                    }
+                },
+                adminBurdenChart: {
+                    title: 'The Clinician\'s Time: A Battle Against Paperwork',
+                    description: 'Studies show that U.S. physicians spend, on average, 16.6% of their working hours—nearly 9 hours per week—on administrative tasks alone. This "pajama time" work is a leading contributor to burnout. AI tools aim to significantly reduce this burden.',
+                    run: (container) => {
+                        container.innerHTML = `<div class="chart-container"><canvas id="burdenChart"></canvas></div>`;
+                        new Chart(container.querySelector('#burdenChart'), {
+                            type: 'doughnut',
+                            data: {
+                                labels: ['Administrative Tasks', 'All Other Work'],
+                                datasets: [{
+                                    data: [16.6, 83.4],
+                                    backgroundColor: ['#ef4444', '#0891b2'],
+                                    borderColor: '#f8fafc',
+                                    borderWidth: 4,
+                                    hoverOffset: 4
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                cutout: '60%',
+                                plugins: {
+                                    legend: { display: false },
+                                    tooltip: {
+                                        callbacks: {
+                                            label: function(context) {
+                                                return `${context.label}: ${context.raw}%`;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+        };
+
+        const roleSelector = document.getElementById('role-selector');
+        const mainContent = document.getElementById('main-content');
+        let currentRole = 'all';
+
+        function renderNav() {
+            roleSelector.innerHTML = '';
+            Object.keys(appData.roles).forEach(roleKey => {
+                const role = appData.roles[roleKey];
+                const button = document.createElement('button');
+                button.className = `nav-button text-sm md:text-base font-semibold py-2 px-4 rounded-full flex items-center gap-2 ${currentRole === roleKey ? 'active-nav-button' : 'bg-white text-cyan-800 shadow-sm'}`;
+                button.innerHTML = `<span>${role.icon}</span> ${role.name}`;
+                button.onclick = () => {
+                    currentRole = roleKey;
+                    renderNav();
+                    renderContent();
+                };
+                roleSelector.appendChild(button);
+            });
+        }
+
+        function renderContent() {
+            mainContent.innerHTML = '';
+            const roleData = appData.roles[currentRole];
+            
+            const introSection = document.createElement('section');
+            introSection.className = 'text-center bg-white p-6 rounded-lg shadow-md fade-in';
+            introSection.innerHTML = `<h2 class="text-2xl font-bold text-cyan-800 mb-2 flex items-center justify-center gap-3">${roleData.icon} For the ${roleData.name}</h2><p class="text-slate-600 max-w-2xl mx-auto">${roleData.description}</p>`;
+            mainContent.appendChild(introSection);
+
+            if (currentRole === 'clinician') {
+                 const chartSection = createSection(appData.demos.adminBurdenChart.title, appData.demos.adminBurdenChart.description);
+                 appData.demos.adminBurdenChart.run(chartSection.querySelector('.content-area'));
+                 mainContent.appendChild(chartSection);
+            }
+
+            if (roleData.painPoints && roleData.painPoints.length > 0) {
+                const painPointsSection = createSection('Key Challenges & AI Solutions', 'These are the common hurdles faced in your role, and the AI tools designed to help you overcome them.');
+                const grid = document.createElement('div');
+                grid.className = 'grid md:grid-cols-2 lg:grid-cols-3 gap-6';
+                
+                const relevantSolutions = currentRole === 'all' ? Object.keys(appData.solutions) : roleData.solutions;
+
+                relevantSolutions.forEach(solutionKey => {
+                    const solution = appData.solutions[solutionKey];
+                    const card = document.createElement('div');
+                    card.className = 'content-card bg-white p-6 rounded-lg shadow-md text-center';
+                    card.innerHTML = `
+                        <div class="text-4xl mb-3">${solution.icon}</div>
+                        <h3 class="text-xl font-bold text-cyan-800 mb-2">${solution.title}</h3>
+                        <p class="text-slate-600 text-sm mb-3">${solution.description}</p>
+                        <p class="text-xs text-slate-400 font-medium uppercase">Tools: ${solution.tool}</p>
+                    `;
+                    grid.appendChild(card);
+                });
+                painPointsSection.querySelector('.content-area').appendChild(grid);
+                mainContent.appendChild(painPointsSection);
+            }
+            
+            const relevantDemos = currentRole === 'all' ? Object.keys(appData.demos).filter(k => k !== 'adminBurdenChart') : roleData.demos;
+
+            if (relevantDemos && relevantDemos.length > 0) {
+                const demosSection = createSection('Interactive Demos', 'Experience these AI tools firsthand with these simple, hands-on simulations.');
+                const demosArea = demosSection.querySelector('.content-area');
+                demosArea.classList.add('space-y-8');
+                relevantDemos.forEach(demoKey => {
+                    const demo = appData.demos[demoKey];
+                    const demoContainer = document.createElement('div');
+                    demoContainer.className = 'content-card bg-white p-6 rounded-lg shadow-md';
+                    demoContainer.innerHTML = `
+                        <h3 class="text-xl font-bold text-cyan-800 mb-1 text-center">${demo.title}</h3>
+                        <p class="text-sm text-slate-500 mb-4 text-center">${demo.description}</p>
+                    `;
+                    appData.demos[demoKey].run(demoContainer);
+                    demosArea.appendChild(demoContainer);
+                });
+
+                mainContent.appendChild(demosSection);
+            }
+        }
+
+        function createSection(title, description) {
+            const section = document.createElement('section');
+            section.className = 'fade-in';
+            section.innerHTML = `
+                <header class="text-center mb-6">
+                    <h2 class="text-2xl md:text-3xl font-bold text-slate-700">${title}</h2>
+                    ${description ? `<p class="text-md text-slate-500 max-w-2xl mx-auto mt-1">${description}</p>` : ''}
+                </header>
+                <div class="content-area"></div>
+            `;
+            return section;
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            renderNav();
+            renderContent();
+        });
+    </script>
+</body>
+</html>
